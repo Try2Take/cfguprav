@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+import base64
+import posixpath
+import time
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass, field
+from pathlib import Path
+
+
+class CommandError(Exception):
+    pass
+
+
+class VFSLoadError(Exception):
+    pass
+
+
+def validate_name(name: str) -> None:
+    if not name or name in {".", ".."} or "/" in name or "\x00" in name:
+        raise CommandError(f"недопустимое имя узла VFS: {name!r}")
+
+
+@dataclass
+class File:
+    content: bytes = b""
+    binary: bool = False
+    modified_at: float = field(default_factory=time.time, init=False)
+
+
+@dataclass
+class VirtualFileSystem:
+    name: str
+    entries: dict[str, File | None]
+
+    @classmethod
+    def load(cls, path: str | Path) -> "VirtualFileSystem":
+        try:
+            xml_root = ET.parse(path).getroot()
+            if xml_root.tag != "vfs":
+                raise CommandError("корневой элемент должен называться <vfs>")
+
+            vfs_name = (xml_root.get("name") or Path(path).stem).strip()
+            if not vfs_name:
+                raise CommandError("имя VFS не может быть пустым")
+
+            file_system = cls(vfs_name, {"/": None})
+            file_system._load_children(xml_root, "/")
+            return file_system
+        except (OSError, ET.ParseError, CommandError) as error:
+            raise VFSLoadError(f"не удалось загрузить VFS {path}: {error}")
+
+    def _load_children(self, xml_node: ET.Element, parent_path: str) -> None:
+        for child in xml_node:
+            node_name = child.get("name", "").strip()
+            validate_name(node_name)
+            node_path = posixpath.join(parent_path, node_name)
+
+            if node_path in self.entries:
+                raise CommandError(f"повторяющееся имя в каталоге: {node_name}")
+            if child.tag == "directory":
+                self.entries[node_path] = None
+                self._load_children(child, node_path)
+            elif child.tag == "file":
+                self.entries[node_path] = self._load_file(child)
+            else:
+                raise CommandError(f"неизвестный элемент VFS: <{child.tag}>")
+
+    @staticmethod
+    def _load_file(xml_node: ET.Element) -> File:
+        if len(xml_node):
+            raise CommandError("файл содержит вложенные элементы")
+
+        encoding = xml_node.get("encoding", "text")
+        file_text = xml_node.text or ""
+        if encoding == "text":
+            return File(file_text.encode("utf-8"))
+        if encoding == "base64":
+            encoded_data = "".join(file_text.split())
+            try:
+                file_data = base64.b64decode(encoded_data, validate=True)
+                return File(file_data, binary=True)
+            except ValueError:
+                raise CommandError("неверные данные base64 в файле")
+        raise CommandError(f"неизвестная кодировка файла: {encoding}")
+
+    def resolve(self, path: str, current_dir="/", directory=None) -> str:
+        if path.startswith("/"):
+            resolved_path = "/"
+        else:
+            resolved_path = current_dir
+
+        for path_part in path.split("/"):
+            if self.entries[resolved_path] is not None:
+                raise CommandError(f"не является каталогом: {path}")
+            if path_part == "..":
+                resolved_path = posixpath.dirname(resolved_path)
+            elif path_part not in {"", "."}:
+                resolved_path = posixpath.join(resolved_path, path_part)
+                if resolved_path not in self.entries:
+                    raise CommandError(f"нет такого файла или каталога: {path}")
+
+        path_is_directory = self.entries[resolved_path] is None
+        if directory is not None and path_is_directory != directory:
+            if directory:
+                raise CommandError(f"не является каталогом: {path}")
+            raise CommandError(f"является каталогом: {path}")
+        return resolved_path

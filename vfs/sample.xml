@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vfs name="study-vfs">
+  <directory name="home">
+    <directory name="student">
+      <file name="welcome.txt" encoding="text">Добро пожаловать в виртуальную файловую систему.
+Это второй ряд текста.
+Третья строка нужна для команды head.</file>
+      <directory name="documents">
+        <file name="notes.txt" encoding="text">alpha beta
+gamma delta epsilon
+last line</file>
+        <file name="data.bin" encoding="base64">AAECA/8=</file>
+      </directory>
+    </directory>
+  </directory>
+  <directory name="etc">
+    <file name="motd" encoding="text">Variant 32 shell emulator</file>
+  </directory>
+</vfs>
