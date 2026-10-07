@@ -1,0 +1,39 @@
+ls
+ls /home/student/welcome.txt
+cd "$EMU_HOME"
+ls .
+cd documents
+cd ..
+head welcome.txt
+head -n 2 welcome.txt
+head -1 welcome.txt documents/notes.txt
+head -n 0 welcome.txt
+head -- welcome.txt
+wc welcome.txt
+wc -l welcome.txt
+wc -w welcome.txt
+wc -c documents/data.bin
+wc -lw welcome.txt documents/notes.txt
+wc -lwc welcome.txt documents/notes.txt
+wc -l -w -c welcome.txt
+wc -- welcome.txt
+who
+
+head documents/data.bin
+head
+head -n
+head -n invalid welcome.txt
+head -n -1 welcome.txt
+head -x welcome.txt
+head /home
+wc
+wc -x welcome.txt
+wc /home
+cd /missing
+cd /etc/motd
+cd
+ls one two
+who extra
+exit extra
+unknown-command
+exit

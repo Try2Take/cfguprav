@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vfs name="deep-vfs">
+  <directory name="level1">
+    <directory name="level2">
+      <directory name="level3">
+        <file name="deep.txt" encoding="text">Файл находится на третьем уровне вложенности.</file>
+      </directory>
+    </directory>
+  </directory>
+  <file name="root.txt" encoding="text">Файл в корне.</file>
+</vfs>

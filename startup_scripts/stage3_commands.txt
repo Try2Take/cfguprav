@@ -1,0 +1,14 @@
+ls
+ls root.txt
+ls level1/level2/level3
+cd level1/level2/level3
+ls
+cd ../..
+ls .
+cd /
+ls /level1
+cd /missing
+cd /root.txt
+ls one two
+unknown-command
+exit
