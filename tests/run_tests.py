@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+"""Запускает модульные тесты и выводит число ошибок и провалов."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import unittest
 
 
 def main() -> int:
+    """Находит тесты в этой папке и возвращает код результата проверки."""
     tests_directory = Path(__file__).resolve().parent
     suite = unittest.defaultTestLoader.discover(
         str(tests_directory),
