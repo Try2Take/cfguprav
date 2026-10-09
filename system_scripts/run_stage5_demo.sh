@@ -1,12 +1,22 @@
 #!/usr/bin/env bash
-set -u
+set -eu
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 project_dir="$(cd -- "$script_dir/.." && pwd)"
 vfs_file="$project_dir/vfs/sample.xml"
 mkdir -p "$project_dir/logs"
 
-before_hash="$(sha256sum "$vfs_file" | cut -d ' ' -f 1)"
+vfs_hash() {
+  python3 - "$vfs_file" <<'PY'
+import hashlib
+from pathlib import Path
+import sys
+
+print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())
+PY
+}
+
+before_hash="$(vfs_hash)"
 if python3 "$project_dir/main.py" \
   --vfs "$vfs_file" \
   --log "$project_dir/logs/stage5.csv" \
@@ -17,7 +27,7 @@ else
   status=$?
   [[ $status -eq 1 ]] || exit "$status"
 fi
-after_hash="$(sha256sum "$vfs_file" | cut -d ' ' -f 1)"
+after_hash="$(vfs_hash)"
 
 if [[ "$before_hash" != "$after_hash" ]]; then
   echo "ОШИБКА: исходный XML-файл был изменен" >&2

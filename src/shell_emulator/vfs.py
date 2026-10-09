@@ -56,7 +56,10 @@ class VirtualFileSystem:
             file_system = cls(vfs_name, {"/": None})
             file_system._load_children(xml_root, "/")
             return file_system
-        except (OSError, xml_etree.ParseError, CommandError) as error:
+        except (
+            OSError, xml_etree.ParseError, CommandError,
+            LookupError, ValueError,
+        ) as error:
             raise VFSLoadError(f"не удалось загрузить VFS {path}: {error}")
 
     def _load_children(
@@ -149,3 +152,20 @@ class VirtualFileSystem:
         if file is None:
             return "d", 0, self.loaded_at
         return "-", len(file.content), file.modified_at
+
+    def touch(self, path: str, current_dir="/", modified_at=None) -> None:
+        """Создаёт пустой файл или обновляет время существующего в памяти."""
+        if not path or path.endswith("/"):
+            raise CommandError(f"недопустимый путь файла: {path!r}")
+        parent_path, _, file_name = path.rpartition("/")
+        validate_name(file_name)
+        if not parent_path:
+            parent_path = "/" if path.startswith("/") else "."
+        parent_path = self.resolve(parent_path, current_dir, directory=True)
+        full_path = posixpath.join(parent_path, file_name)
+        if full_path not in self.entries:
+            self.entries[full_path] = File()
+        file = self.entries[full_path]
+        if file is None:
+            raise CommandError(f"touch: является каталогом: {path}")
+        file.modified_at = time.time() if modified_at is None else modified_at

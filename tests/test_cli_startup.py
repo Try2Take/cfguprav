@@ -1,3 +1,5 @@
+"""Проверка запуска CLI без предварительной загрузки VFS."""
+
 from pathlib import Path
 import subprocess
 import sys

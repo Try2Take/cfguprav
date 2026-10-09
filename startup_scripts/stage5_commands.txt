@@ -3,11 +3,17 @@ touch single.txt
 touch empty.txt draft.txt
 touch /root-created.txt
 touch "file with spaces.txt"
+touch .hidden
+touch -- -draft
 touch ../relative.txt
 ls
+ls -a
+ls -lah
+ls -- -draft
 head empty.txt
 wc empty.txt
 touch notes.txt
+ls -l notes.txt
 ls ../relative.txt
 
 touch /home
@@ -16,4 +22,6 @@ touch /etc/motd/child.txt
 touch notes.txt/
 touch .
 touch
+touch --
+touch -z
 exit

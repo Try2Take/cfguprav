@@ -10,7 +10,7 @@ import time
 from datetime import datetime
 from getopt import GetoptError, getopt
 
-from .vfs import CommandError, File, VirtualFileSystem, validate_name
+from .vfs import CommandError, VirtualFileSystem
 
 
 SIZE_BASE = 1024
@@ -254,28 +254,13 @@ class ShellEmulator:
         return f"{self.username} {self.terminal} {session_start}"
 
     def _command_touch(self, arguments: list[str]) -> str:
-        if not arguments:
+        """Обновляет время всех указанных файлов одним значением."""
+        _, file_paths = self._parse_options("touch", arguments, "")
+        if not file_paths:
             raise CommandError("touch: требуется имя хотя бы одного файла")
-
         modified_time = time.time()
-        for file_path in arguments:
-            if not file_path or file_path.endswith("/"):
-                raise CommandError(f"недопустимый путь файла: {file_path!r}")
-
-            parent_path, _, file_name = file_path.rpartition("/")
-            validate_name(file_name)
-            if not parent_path:
-                parent_path = "/" if file_path.startswith("/") else "."
-            parent_path = self.file_system.resolve(parent_path, self.current_dir,
-                                                   directory=True)
-            full_path = posixpath.join(parent_path, file_name)
-
-            if full_path not in self.file_system.entries:
-                self.file_system.entries[full_path] = File()
-            file = self.file_system.entries[full_path]
-            if file is None:
-                raise CommandError(f"touch: является каталогом: {file_path}")
-            file.modified_at = modified_time
+        for file_path in file_paths:
+            self.file_system.touch(file_path, self.current_dir, modified_time)
         return ""
 
     def run(self, lines: list[str] | None = None) -> int:

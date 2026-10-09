@@ -12,13 +12,16 @@ SUMMARY = "Errors были во время исполнения"
 
 
 class CliErrorTests(unittest.TestCase):
-    def run_cli(self, commands="exit\n", script=None, invalid_vfs=False):
+    def run_cli(self, commands="exit\n", script=None, invalid_vfs=False,
+                vfs_text=None):
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
             vfs_path = PROJECT_DIR / "vfs" / "sample.xml"
             if invalid_vfs:
+                vfs_text = "<vfs>"
+            if vfs_text is not None:
                 vfs_path = directory / "broken.xml"
-                vfs_path.write_text("<vfs>", encoding="utf-8")
+                vfs_path.write_text(vfs_text, encoding="utf-8")
             arguments = [
                 sys.executable, str(PROJECT_DIR / "main.py"),
                 "--vfs", str(vfs_path),
@@ -56,6 +59,18 @@ class CliErrorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout)
         self.assertIn("Ошибка загрузки VFS", result.stdout)
         self.assertEqual(result.stdout.count(SUMMARY), 1)
+
+    def test_unsupported_xml_encoding_has_error_summary(self):
+        for encoding in ("unknown", "UTF-32"):
+            with self.subTest(encoding=encoding):
+                xml_text = (
+                    f'<?xml version="1.0" encoding="{encoding}"?>'
+                    '<vfs name="test"/>'
+                )
+                result = self.run_cli(vfs_text=xml_text)
+                self.assertEqual(result.returncode, 2, result.stdout)
+                self.assertEqual(result.stdout.count(SUMMARY), 1)
+                self.assertNotIn("Traceback", result.stdout)
 
 
 if __name__ == "__main__":
