@@ -13,6 +13,10 @@ from getopt import GetoptError, getopt
 from .vfs import CommandError, File, VirtualFileSystem, validate_name
 
 
+SIZE_BASE = 1024
+SIZE_UNITS = ("", "K", "M", "G", "T", "P", "E")
+
+
 class ShellEmulator:
     """Хранит текущий каталог, команды и состояние сессии."""
 
@@ -84,25 +88,52 @@ class ShellEmulator:
         return self.commands[command_name](arguments)
 
     def _command_ls(self, arguments: list[str]) -> str:
-        if len(arguments) > 1:
+        """Показывает один файл или содержимое каталога с ключами l, a, h."""
+        options, paths = self._parse_options("ls", arguments, "lah")
+        if len(paths) > 1:
             raise CommandError("ls: ожидается не более одного пути")
-
-        requested_path = arguments[0] if arguments else "."
+        flags = {option[1] for option, _ in options}
+        requested_path = paths[0] if paths else "."
         folder_path = self.file_system.resolve(requested_path, self.current_dir)
-        if self.file_system.entries[folder_path] is not None:
-            return posixpath.basename(folder_path)
+        if self.file_system.entries[folder_path] is None:
+            names = self.file_system.list_directory(folder_path, "a" in flags)
+        else:
+            names = [(posixpath.basename(folder_path), folder_path)]
+        return "\n".join(
+            self._format_ls_entry(name, path, flags) for name, path in names
+        )
 
-        names = []
-        for entry_path, entry in sorted(self.file_system.entries.items()):
-            if posixpath.dirname(entry_path) != folder_path or entry_path == folder_path:
-                continue
-            entry_name = posixpath.basename(entry_path)
-            if entry is None:
-                entry_name += "/"
-            names.append(entry_name)
-        return "\n".join(names)
+    @staticmethod
+    def _parse_options(command_name, arguments, allowed_flags):
+        """Разбирает короткие ключи, их комбинации и разделитель --."""
+        try:
+            return getopt(arguments, allowed_flags)
+        except GetoptError as error:
+            raise CommandError(f"{command_name}: неизвестный ключ: {error.opt}")
+
+    def _format_ls_entry(self, name: str, path: str, flags: set[str]) -> str:
+        """Формирует обычную или подробную строку списка файлов."""
+        kind, byte_count, modified_at = self.file_system.metadata(path)
+        display_name = name + "/" if kind == "d" else name
+        if "l" not in flags:
+            return display_name
+        size = self._human_size(byte_count) if "h" in flags else str(byte_count)
+        modified_time = datetime.fromtimestamp(modified_at)
+        date = modified_time.strftime("%Y-%m-%d %H:%M")
+        return f"{kind} {size} {date} {display_name}"
+
+    @staticmethod
+    def _human_size(byte_count: int) -> str:
+        """Сокращает размер в байтах, используя единицы по 1024 байта."""
+        size = float(byte_count)
+        for unit in SIZE_UNITS:
+            if size < SIZE_BASE or unit == SIZE_UNITS[-1]:
+                return f"{size:.1f}{unit}" if unit else str(byte_count)
+            size /= SIZE_BASE
+        return str(byte_count)
 
     def _command_cd(self, arguments: list[str]) -> str:
+        """Меняет текущий каталог после проверки пути."""
         if len(arguments) != 1:
             raise CommandError("cd: ожидается ровно один путь")
         self.current_dir = self.file_system.resolve(
@@ -111,12 +142,14 @@ class ShellEmulator:
         return ""
 
     def _command_head(self, arguments: list[str]) -> str:
+        """Возвращает первые строки текстовых файлов."""
         line_count, file_paths = self._parse_head_arguments(arguments)
         output_parts = []
 
         for file_path in file_paths:
-            full_path = self.file_system.resolve(file_path, self.current_dir,
-                                                 directory=False)
+            full_path = self.file_system.resolve(
+                file_path, self.current_dir, directory=False,
+            )
             file = self.file_system.entries[full_path]
             if file.binary:
                 raise CommandError(f"head: двоичный файл: {full_path}")
@@ -134,6 +167,7 @@ class ShellEmulator:
 
     @staticmethod
     def _parse_head_arguments(arguments: list[str]) -> tuple[int, list[str]]:
+        """Разбирает число строк в формах -n N и -N, затем пути файлов."""
         line_count = 10
         index = 0
 
@@ -145,48 +179,49 @@ class ShellEmulator:
             if not argument.startswith("-") or argument == "-":
                 break
 
-            if argument == "-n":
-                index += 1
-                count_text = arguments[index] if index < len(arguments) else ""
-            elif argument[1:].isdigit():
-                count_text = argument[1:]
-            else:
-                raise CommandError(f"head: неизвестный ключ: {argument}")
-
-            try:
-                line_count = int(count_text)
-            except ValueError:
-                raise CommandError(f"head: ожидалось число строк: {count_text}")
-            if line_count < 0:
-                raise CommandError(f"head: отрицательное число строк: {count_text}")
-            index += 1
+            line_count, index = ShellEmulator._read_head_count(arguments, index)
 
         file_paths = arguments[index:]
         if not file_paths:
             raise CommandError("head: требуется имя хотя бы одного файла")
         return line_count, file_paths
 
-    def _command_wc(self, arguments: list[str]) -> str:
+    @staticmethod
+    def _read_head_count(arguments: list[str], index: int) -> tuple[int, int]:
+        """Читает один ключ head и проверяет неотрицательное число строк."""
+        argument = arguments[index]
+        if argument == "-n":
+            index += 1
+            count_text = arguments[index] if index < len(arguments) else ""
+        elif argument[1:].isdigit():
+            count_text = argument[1:]
+        else:
+            raise CommandError(f"head: неизвестный ключ: {argument}")
         try:
-            options, file_paths = getopt(arguments, "lwc")
-        except GetoptError as error:
-            raise CommandError(f"wc: неизвестный ключ: {error.opt}")
+            line_count = int(count_text)
+        except ValueError:
+            raise CommandError(f"head: ожидалось число строк: {count_text}")
+        if line_count < 0:
+            raise CommandError(f"head: отрицательное число строк: {count_text}")
+        return line_count, index + 1
+
+    def _command_wc(self, arguments: list[str]) -> str:
+        """Считает переводы строк, слова и байты; для файлов выводит итог."""
+        options, file_paths = self._parse_options("wc", arguments, "lwc")
         if not file_paths:
             raise CommandError("wc: требуется имя хотя бы одного файла")
 
-        selected_counts = []
-        for option, _ in options:
-            count_name = option[1]
-            if count_name not in selected_counts:
-                selected_counts.append(count_name)
-        if not selected_counts:
-            selected_counts = ["l", "w", "c"]
+        selected_counts = list(dict.fromkeys(
+            option[1] for option, _ in options
+        ))
+        selected_counts = selected_counts or ["l", "w", "c"]
 
         results = []
         total_counts = {"l": 0, "w": 0, "c": 0}
         for file_path in file_paths:
-            full_path = self.file_system.resolve(file_path, self.current_dir,
-                                                 directory=False)
+            full_path = self.file_system.resolve(
+                file_path, self.current_dir, directory=False,
+            )
             file = self.file_system.entries[full_path]
             file_counts = {
                 "l": file.content.count(b"\n"),
@@ -200,13 +235,19 @@ class ShellEmulator:
         if len(file_paths) > 1:
             results.append((total_counts, "итого"))
 
-        output_lines = []
-        for counts, file_name in results:
-            numbers = [str(counts[count_name]) for count_name in selected_counts]
-            output_lines.append(" ".join(numbers) + " " + file_name)
-        return "\n".join(output_lines)
+        return "\n".join(
+            self._format_wc_result(counts, name, selected_counts)
+            for counts, name in results
+        )
+
+    @staticmethod
+    def _format_wc_result(counts, file_name, selected_counts) -> str:
+        """Выводит выбранные счётчики в порядке ключей пользователя."""
+        numbers = [str(counts[count_name]) for count_name in selected_counts]
+        return " ".join(numbers) + " " + file_name
 
     def _command_who(self, arguments: list[str]) -> str:
+        """Показывает пользователя и время начала этой сессии эмулятора."""
         if arguments:
             raise CommandError("who: команда не принимает аргументы")
         session_start = self.login_time.strftime("%Y-%m-%d %H:%M")

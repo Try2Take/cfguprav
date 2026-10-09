@@ -1,4 +1,12 @@
 ls
+ls -l
+ls -a
+ls -h
+ls -la
+ls -lh
+ls -ah
+ls -lah
+ls -l -a -h
 ls /home/student/welcome.txt
 cd "$EMU_HOME"
 ls .
@@ -33,6 +41,7 @@ cd /missing
 cd /etc/motd
 cd
 ls one two
+ls -z
 who extra
 exit extra
 unknown-command

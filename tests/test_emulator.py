@@ -1,3 +1,5 @@
+"""Проверки загрузки VFS, команд, CSV и параметров запуска."""
+
 from __future__ import annotations
 
 import csv
@@ -96,8 +98,10 @@ class VfsTests(unittest.TestCase):
     def test_text_binary_and_three_levels_are_loaded(self) -> None:
         file_system = VirtualFileSystem.load(VFS_FILE)
         student = file_system.resolve("/home/student", directory=True)
-        text = file_system.entries[file_system.resolve("documents/notes.txt", student)]
-        binary = file_system.entries[file_system.resolve("documents/data.bin", student)]
+        text_path = file_system.resolve("documents/notes.txt", student)
+        binary_path = file_system.resolve("documents/data.bin", student)
+        text = file_system.entries[text_path]
+        binary = file_system.entries[binary_path]
         self.assertIsInstance(text, File)
         self.assertEqual(
             text.content,
@@ -253,7 +257,8 @@ class LoggingAndScriptTests(unittest.TestCase):
     def test_csv_contains_success_and_error(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             log_path = Path(temp_dir) / "commands.csv"
-            with log_path.open("w+", encoding="utf-8", newline="") as log_buffer:
+            with log_path.open("w+", encoding="utf-8",
+                               newline="") as log_buffer:
                 shell = make_shell(log_buffer)
                 execute_ok(shell, "ls /etc")
                 execute_error(shell, "cd /missing")
@@ -317,7 +322,8 @@ class CliTests(unittest.TestCase):
                 timeout=10,
                 check=False,
             )
-            rows = list(csv.DictReader(log.open(encoding="utf-8")))
+            with log.open(encoding="utf-8") as log_file:
+                rows = list(csv.DictReader(log_file))
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("Параметры запуска", result.stdout)
         self.assertIn("study-vfs:/$ ls $EMU_PATH", result.stdout)
