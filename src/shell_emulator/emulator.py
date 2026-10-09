@@ -1,3 +1,5 @@
+"""Команды оболочки и цикл чтения команд."""
+
 from __future__ import annotations
 
 import getpass
@@ -12,11 +14,15 @@ from .vfs import CommandError, File, VirtualFileSystem, validate_name
 
 
 class ShellEmulator:
+    """Хранит текущий каталог, команды и состояние сессии."""
+
     def __init__(self, file_system: VirtualFileSystem, log_writer) -> None:
+        """Начинает сессию в корне загруженной VFS."""
         self.file_system = file_system
         self.current_dir = "/"
         self.log_writer = log_writer
         self.running = True
+        self.error_count = 0
         self.username = getpass.getuser()
         try:
             self.terminal = os.path.basename(os.ttyname(0))
@@ -33,9 +39,11 @@ class ShellEmulator:
         }
 
     def prompt(self) -> str:
+        """Возвращает приглашение с именем VFS и текущим каталогом."""
         return f"{self.file_system.name}:{self.current_dir}$ "
 
     def execute_line(self, line: str) -> str:
+        """Выполняет команду, записывает результат в CSV и считает ошибки."""
         command_name = "<parse>"
         arguments = [line]
         output = ""
@@ -49,25 +57,31 @@ class ShellEmulator:
             command_name = command_parts[0]
             arguments = command_parts[1:]
 
-            if command_name == "exit":
-                if arguments:
-                    raise CommandError("exit: команда не принимает аргументы")
-                self.running = False
-            elif command_name in self.commands:
-                output = self.commands[command_name](arguments)
-            else:
-                raise CommandError(f"неизвестная команда: {command_name}")
+            output = self._dispatch_command(command_name, arguments)
         except CommandError as error:
             error_message = str(error)
         except ValueError as error:
             error_message = f"ошибка синтаксиса: {error}"
 
+        if error_message:
+            self.error_count += 1
         command_time = datetime.now().astimezone().isoformat(timespec="seconds")
         self.log_writer.writerow((command_time, command_name,
                                   shlex.join(arguments), error_message))
         if output:
             print(output)
         return error_message
+
+    def _dispatch_command(self, command_name: str, arguments: list[str]) -> str:
+        """Вызывает обработчик команды или завершает сессию по exit."""
+        if command_name == "exit":
+            if arguments:
+                raise CommandError("exit: команда не принимает аргументы")
+            self.running = False
+            return ""
+        if command_name not in self.commands:
+            raise CommandError(f"неизвестная команда: {command_name}")
+        return self.commands[command_name](arguments)
 
     def _command_ls(self, arguments: list[str]) -> str:
         if len(arguments) > 1:
@@ -224,32 +238,35 @@ class ShellEmulator:
         return ""
 
     def run(self, lines: list[str] | None = None) -> int:
+        """Читает команды до exit или конца ввода и возвращает число ошибок."""
         script_lines = iter(enumerate(lines, 1)) if lines is not None else None
-        error_count = 0
+        previous_errors = self.error_count
 
         while self.running:
             try:
-                if script_lines is not None:
-                    line_number, line = next(script_lines)
-                else:
-                    line_number = 0
-                    line = input(self.prompt())
+                line_number, line = self._read_line(script_lines)
             except (StopIteration, EOFError, KeyboardInterrupt):
                 if script_lines is None:
                     print()
                 break
 
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if script_lines is not None:
-                print(f"{self.prompt()}{line}")
+            self._run_line(line, line_number, script_lines is not None)
+        return self.error_count - previous_errors
 
-            error_message = self.execute_line(line)
-            if error_message:
-                error_count += 1
-                if line_number:
-                    print(f"Ошибка в строке {line_number}: {error_message}")
-                else:
-                    print(f"Ошибка: {error_message}")
-        return error_count
+    def _read_line(self, script_lines) -> tuple[int, str]:
+        """Читает строку скрипта с номером или запрашивает ввод пользователя."""
+        if script_lines is not None:
+            return next(script_lines)
+        return 0, input(self.prompt())
+
+    def _run_line(self, line: str, line_number: int, show_input: bool) -> None:
+        """Пропускает комментарии и показывает результат одной строки."""
+        line = line.strip()
+        if not line or line.startswith("#"):
+            return
+        if show_input:
+            print(f"{self.prompt()}{line}")
+        error_message = self.execute_line(line)
+        if error_message:
+            location = f" в строке {line_number}" if line_number else ""
+            print(f"Ошибка{location}: {error_message}")
