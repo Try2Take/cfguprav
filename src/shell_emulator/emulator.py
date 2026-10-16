@@ -6,6 +6,7 @@ import getpass
 import os
 import posixpath
 import shlex
+import time
 from datetime import datetime
 from getopt import GetoptError, getopt
 
@@ -38,6 +39,7 @@ class ShellEmulator:
             "head": self._command_head,
             "wc": self._command_wc,
             "who": self._command_who,
+            "touch": self._command_touch,
         }
 
     def prompt(self) -> str:
@@ -250,6 +252,16 @@ class ShellEmulator:
             raise CommandError("who: команда не принимает аргументы")
         session_start = self.login_time.strftime("%Y-%m-%d %H:%M")
         return f"{self.username} {self.terminal} {session_start}"
+
+    def _command_touch(self, arguments: list[str]) -> str:
+        """Обновляет время всех указанных файлов одним значением."""
+        _, file_paths = self._parse_options("touch", arguments, "")
+        if not file_paths:
+            raise CommandError("touch: требуется имя хотя бы одного файла")
+        modified_time = time.time()
+        for file_path in file_paths:
+            self.file_system.touch(file_path, self.current_dir, modified_time)
+        return ""
 
     def run(self, lines: list[str] | None = None) -> int:
         """Читает команды до exit или конца ввода и возвращает число ошибок."""
