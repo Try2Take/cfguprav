@@ -226,10 +226,30 @@ class CommandTests(unittest.TestCase):
         self.assertFalse(self.shell.running)
         self.assertIn("неизвестная", execute_error(self.shell, "missing"))
 
-    def test_touch_is_not_available_yet(self) -> None:
-        error = execute_error(self.shell, "touch new.txt")
-        self.assertIn("неизвестная команда: touch", error)
-        self.assertNotIn("/new.txt", self.shell.file_system.entries)
+    def test_touch_creates_and_updates_files_in_memory(self) -> None:
+        execute_ok(self.shell, "cd /home/student/documents")
+        execute_ok(self.shell, "touch empty.txt notes.txt")
+        created = self.shell.file_system.entries[
+            self.shell.file_system.resolve("empty.txt", self.shell.current_dir)
+        ]
+        self.assertIsInstance(created, File)
+        self.assertEqual(created.content, b"")
+        self.assertIn("empty.txt", execute_ok(self.shell, "ls"))
+        self.assertEqual(execute_ok(self.shell, "wc empty.txt").split()[0:3],
+                         ["0", "0", "0"])
+
+    def test_touch_errors_and_xml_is_unchanged(self) -> None:
+        before = hashlib.sha256(VFS_FILE.read_bytes()).digest()
+        self.assertIn("требуется имя", execute_error(self.shell, "touch"))
+        self.assertIn("является каталогом",
+                      execute_error(self.shell, "touch /home"))
+        self.assertIn("нет такого",
+                      execute_error(self.shell, "touch /missing/a"))
+        execute_ok(self.shell, "touch /created.txt")
+        after = hashlib.sha256(VFS_FILE.read_bytes()).digest()
+        self.assertEqual(before, after)
+        reloaded = VirtualFileSystem.load(VFS_FILE)
+        self.assertNotIn("/created.txt", reloaded.entries)
 
 
 class LoggingAndScriptTests(unittest.TestCase):

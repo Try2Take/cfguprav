@@ -15,5 +15,6 @@ system-test:
 	bash system_scripts/run_minimal_vfs.sh
 	bash system_scripts/run_deep_vfs.sh
 	bash system_scripts/run_stage4_demo.sh
+	bash system_scripts/run_stage5_demo.sh
 
 check: test system-test
