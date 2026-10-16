@@ -1,0 +1,6 @@
+# Stage 3 checks loaded VFS name; ls and cd are still stubs.
+ls
+cd /level1/level2/level3
+ls /level1/level2/level3
+unknown-command
+exit

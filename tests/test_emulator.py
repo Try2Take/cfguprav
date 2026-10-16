@@ -17,7 +17,7 @@ class ReplTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             return subprocess.run(
                 [sys.executable, str(PROJECT_DIR / "main.py"),
-                 "--vfs", str(Path(temp_dir) / "not-loaded.xml"),
+                 "--vfs", str(PROJECT_DIR / "vfs" / "sample.xml"),
                  "--log", str(Path(temp_dir) / "commands.csv")],
                 input=commands, text=True, capture_output=True,
                 env=env, check=False,
@@ -51,7 +51,7 @@ class ReplTests(unittest.TestCase):
             env["EMU_TARGET"] = "/from-env"
             result = subprocess.run(
                 [sys.executable, str(PROJECT_DIR / "main.py"),
-                 "--vfs", str(directory / "not-loaded.xml"),
+                 "--vfs", str(PROJECT_DIR / "vfs" / "sample.xml"),
                  "--log", str(log), "--script", str(script)],
                 text=True, capture_output=True, env=env, check=False,
             )
