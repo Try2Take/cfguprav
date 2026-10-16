@@ -1,0 +1,4 @@
+ls "$EMU_TARGET"
+cd /tmp
+unknown-command
+exit
