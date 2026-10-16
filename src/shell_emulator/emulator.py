@@ -8,14 +8,14 @@ from datetime import datetime
 
 
 class ShellEmulator:
-    def __init__(self, vfs_name: str, log_writer) -> None:
-        self.vfs_name = vfs_name
+    def __init__(self, file_system, log_writer) -> None:
+        self.file_system = file_system
         self.log_writer = log_writer
         self.running = True
         self.error_count = 0
 
     def prompt(self) -> str:
-        return f"{self.vfs_name}:/$ "
+        return f"{self.file_system.name}:/$ "
 
     def execute_line(self, line: str) -> str:
         name, arguments = "<parse>", [line]

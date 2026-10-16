@@ -13,5 +13,6 @@ test:
 system-test:
 	bash system_scripts/run_all_parameters.sh
 	bash system_scripts/run_minimal_vfs.sh
+	bash system_scripts/run_deep_vfs.sh
 
 check: test system-test
