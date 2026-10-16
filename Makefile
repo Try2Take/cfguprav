@@ -1,11 +1,17 @@
 PYTHON ?= python3
+VFS ?= vfs/sample.xml
+LOG ?= logs/session.csv
 
-.PHONY: run test check
+.PHONY: run test system-test check
 
 run:
-	$(PYTHON) main.py
+	$(PYTHON) main.py --vfs "$(VFS)" --log "$(LOG)"
 
 test:
 	$(PYTHON) tests/run_tests.py
 
-check: test
+system-test:
+	bash system_scripts/run_all_parameters.sh
+	bash system_scripts/run_minimal_vfs.sh
+
+check: test system-test
