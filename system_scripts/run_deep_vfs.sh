@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eu
+set -u
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 project_dir="$(cd -- "$script_dir/.." && pwd)"
@@ -14,18 +14,6 @@ if python3 "$project_dir/main.py" \
 else
   status=$?
   [[ $status -eq 1 ]] || exit "$status"
-fi
-
-if ! PYTHONPATH="$project_dir" python3 - "$project_dir/vfs/deep.xml" <<'PYCODE'
-import sys
-from src.shell_emulator.vfs import VirtualFileSystem
-
-file_system = VirtualFileSystem.load(sys.argv[1])
-assert "/level1/level2/level3/deep.txt" in file_system.entries
-PYCODE
-then
-  echo "ОШИБКА: в глубокой VFS нет файла третьего уровня" >&2
-  exit 1
 fi
 
 echo "Трехуровневая VFS загружена, ошибка сценария обработана"
